@@ -653,6 +653,22 @@ button:focus-visible{outline:4px solid var(--violet);outline-offset:3px}
 .lr span:last-child{text-align:right}
 .pcard .small{font-size:12px;opacity:.8;margin:8px 0 0}
 
+/* Als App installieren */
+.stats{flex-wrap:wrap;row-gap:6px}
+.plink.app{background:var(--violet);color:#fff}
+.plink.app.ready{box-shadow:0 0 0 3px rgba(139,119,255,.35)}
+.instbox{text-align:left;align-items:stretch;gap:12px;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow:auto}
+.instbox .iico{width:64px;height:64px;align-self:center;border-radius:16px}
+.instbox .ih{margin:0;text-align:center;font-family:var(--display);font-size:22px;color:var(--ink)}
+.instbox p{min-height:0;font-size:15.5px;line-height:1.4;font-weight:700;color:var(--ink-soft)}
+.instbox p b,.instbox li b{color:var(--ink);font-family:var(--body)}
+.instbox ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-weight:700;font-size:15.5px;line-height:1.4;color:var(--ink-soft)}
+.instbox .btn{align-self:center;text-decoration:none;text-align:center}
+.instbox .iurl{font-size:clamp(14px,4vw,17px);overflow-wrap:anywhere}
+.instbox .ismall{font-size:13px}
+.instbox .iurlt{text-align:center;user-select:all;overflow-wrap:anywhere;color:var(--ink)}
+.instbox .ish{width:18px;height:18px;vertical-align:-3px;fill:none;stroke:var(--violet);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
 </style>
 </head>
 <body>
@@ -3027,6 +3043,7 @@ function showParents() {
       <p>Funkel spricht mit eingebauten Sprachclips. Du hörst nichts? Prüfe die Lautstärke, den Stumm-Schalter am Handy und die Taste oben rechts (🔊).</p>
       <button class="btn sm alt" id="pTest" type="button">🔊 Ton testen</button>
     </div>
+    ${installCardHTML()}
     <div class="card pcard">${lernstandHTML()}</div>
     <div class="card pcard">
       <h3>Fortschritt</h3>
@@ -3037,6 +3054,7 @@ function showParents() {
   </section>`);
   $('#pTest').onclick = () => { Voice.unlock(); Snd.correct(); Funkel.say('Hallo! Ich bin Funkel. Kannst du mich hören?', { bubble: false }); };
   $('#pAll').onclick = () => { ST.all = !ST.all; saveState(); go('parents'); };
+  if ($('#pApp')) $('#pApp').onclick = openInstall;
   let armed = false;
   $('#pReset').onclick = (e) => {
     const btn = e.currentTarget;
@@ -3067,11 +3085,12 @@ function showHome() {
       <button class="tile" data-go="shop" type="button"><span>👗</span>Schrank</button>
       <button class="tile" data-go="album" type="button"><span>📒</span>Sammlung${ST.eggs ? `<i class="dot">${ST.eggs}</i>` : ''}</button>
     </div>
-    <div class="stats"><span>🔥 ${ST.streak.n} ${ST.streak.n === 1 ? 'Tag' : 'Tage'}</span><span>★ ${totalStars()}</span><button class="plink" id="bPar" type="button">Für Eltern</button></div>
+    <div class="stats"><span>🔥 ${ST.streak.n} ${ST.streak.n === 1 ? 'Tag' : 'Tage'}</span><span>★ ${totalStars()}</span>${installChipHTML()}<button class="plink" id="bPar" type="button">Für Eltern</button></div>
   </section>`);
   $('#bGo').onclick = () => go('map');
   $$('.tile').forEach((b) => { b.onclick = () => go(b.dataset.go); });
   $('#bPar').onclick = () => go('parents');
+  if ($('#bApp')) $('#bApp').onclick = openInstall;
   if ($('#bChest')) $('#bChest').onclick = (e) => { claimChest(e.currentTarget); setTimeout(() => go('home'), 1600 * SPEED()); };
   const chest = d.done && !d.got;
   Funkel.text(chest ? 'Du hast dein Tagesziel geschafft! Hol dir deine Kiste!' : fresh ? 'Hallo! Ich bin <b>Funkel</b>. Wollen wir zusammen rechnen?' : 'Schön, dass du wieder da bist!');
@@ -3616,6 +3635,104 @@ function startGameStage(id, d, btn) {
   }
   S.gpan = id;
   go('game_' + id, { d });
+}
+
+/* ===== Als App installieren ===== */
+/* Der Knopf „📲 App“ (Startseite, Eltern-Bereich) zeigt je nach Lage den passenden Weg, damit Funkel mit eigenem Symbol
+   auf den Startbildschirm kommt (installCtx):
+   app      als App gestartet (oder gerade installiert): Knopf ausgeblendet
+   frame    in einem fremden Fenster (z. B. der claude.ai-Link) oder als Datei: Hinweis auf die eigene Adresse APP_URL.
+            Im fremden Fenster nimmt das Handy das Zeichen der fremden Seite, und einen Offline-Speicher gibt es dort nicht.
+   inapp    in einer anderen App geöffnet (Instagram, Facebook, TikTok, Android-WebView …): erst im Browser öffnen
+   prompt   der Browser bietet die Installation an (Android/Chrome, Edge …): Knopf öffnet seinen Installieren-Dialog
+   ios      iPhone/iPad: Schritte über Teilen → „Zum Home-Bildschirm“
+   android  Android ohne Angebot des Browsers (noch nicht fertig geladen, Firefox, Samsung …): Schritte übers Menü
+   desktop  Computer: Hinweis auf das Installieren-Symbol */
+const APP_URL = 'https://maku1804.github.io/Funkel-Rechenapp/';
+const APP_HOST = APP_URL.replace(/^https:\/\//, '').replace(/\/$/, '');
+const Inst = { evt: null, done: false };
+
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); Inst.evt = e; refreshInstall(); });
+window.addEventListener('appinstalled', () => { Inst.evt = null; Inst.done = true; refreshInstall(); toast('📲 Funkel ist jetzt auf dem Startbildschirm!', 3200); });
+
+function installCtx() {
+  const ua = navigator.userAgent || '';
+  let standalone = false, framed = false;
+  try { standalone = navigator.standalone === true || ['standalone', 'fullscreen', 'minimal-ui'].some((m) => matchMedia(`(display-mode: ${m})`).matches); } catch (e) { /* alter Browser */ }
+  if (standalone || Inst.done) return 'app';
+  try { framed = window.top !== window.self; } catch (e) { framed = true; }
+  if (framed || !/^https?:$/.test(location.protocol)) return 'frame';
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (/FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|TikTok|musical_ly|Snapchat|Pinterest|LinkedInApp|; wv\)/.test(ua) || (ios && !/Safari\//.test(ua))) return 'inapp';
+  if (Inst.evt) return 'prompt';
+  if (ios) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+function installChipHTML() {
+  return installCtx() === 'app' ? '' : `<button class="plink app${Inst.evt ? ' ready' : ''}" id="bApp" type="button" aria-label="Funkel als App installieren">📲 App</button>`;
+}
+function refreshInstall() {
+  const b = $('#bApp');
+  if (!b) return;
+  if (installCtx() === 'app') b.remove(); else b.classList.toggle('ready', !!Inst.evt);
+}
+function installCardHTML() {
+  const app = installCtx() === 'app';
+  return `<div class="card pcard"><h3>Als App</h3>
+    <p>${app ? 'Funkel ist als App installiert. ✓' : 'Funkel mit eigenem Symbol auf den Startbildschirm legen. Dann startet Funkel wie eine App, auch ohne Internet.'}</p>
+    ${app ? '' : '<button class="btn sm alt" id="pApp" type="button">📲 Als App installieren</button>'}</div>`;
+}
+
+const SHARE_SVG = '<svg class="ish" viewBox="0 0 24 24" aria-label="Teilen-Symbol"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8.5 10H6v10h12V10h-2.5"/></svg>';
+function installBody(ctx) {
+  const link = `<a class="btn sm alt iurl" href="${APP_URL}" target="_blank" rel="noopener">${APP_HOST}</a>`;
+  const copy = '<button class="btn sm ghost" id="iCopy" type="button">Adresse kopieren</button>';
+  switch (ctx) {
+    case 'frame': return `<p>Hier läuft Funkel nur in einem fremden Fenster (zum Beispiel über einen claude.ai-Link). Auf dem Startbildschirm bekäme Funkel dann das Zeichen dieser Seite und würde ohne Internet nicht starten.</p>
+      <p><b>So klappt es:</b> Öffne die Funkel-Adresse im Browser (Chrome oder Safari) und tippe dort auf <b>„📲 App“</b>.</p>${link}${copy}
+      <p class="ismall">Sterne und Funkelsteine von hier kommen nicht mit, Funkel beginnt dort neu.</p>`;
+    case 'inapp': return `<p>Der Link ist gerade in einer anderen App geöffnet (zum Beispiel Instagram oder Facebook). Von hier aus lässt sich Funkel nicht installieren.</p>
+      <ol><li>Tippe auf das Menü dieser App (<b>⋮</b> oder <b>…</b>).</li><li>Wähle <b>„Im Browser öffnen“</b>.</li><li>Tippe dort wieder auf <b>„📲 App“</b>.</li></ol>${copy}`;
+    case 'prompt': return `<p>Funkel kommt mit eigenem Symbol auf den Startbildschirm und startet wie eine App, auch ohne Internet.</p>
+      <button class="btn sm" id="iGo" type="button">📲 Jetzt installieren</button>`;
+    case 'ios': return `<ol><li>Tippe auf <b>Teilen</b> ${SHARE_SVG}: in Safari unten (oder erst auf <b>•••</b>), in Chrome oben neben der Adresse.</li>
+      <li>Wähle <b>„Zum Home-Bildschirm“</b>, falls nötig etwas nach unten wischen.</li><li>Tippe auf <b>„Hinzufügen“</b>.</li></ol>
+      <p class="ismall">Fehlt „Zum Home-Bildschirm“? Dann ist die Seite in einer anderen App geöffnet: zuerst in Safari öffnen.</p>`;
+    case 'android': return `<ol><li>Öffne das Menü des Browsers (<b>⋮</b> oben rechts, bei Samsung Internet <b>☰</b> unten).</li>
+      <li>Wähle <b>„App installieren“</b> oder <b>„Zum Startbildschirm hinzufügen“</b> (Samsung: „Seite hinzufügen zu“ → „Startbildschirm“).</li></ol>
+      <p class="ismall">Steht das noch nicht im Menü, kurz warten, bis die Seite ganz geladen ist. Ist die Seite aus einer anderen App heraus geöffnet (zum Beispiel WhatsApp), zuerst „In Chrome öffnen“ wählen.</p>`;
+    case 'app': return '<p>Funkel ist als App installiert. ✓</p>';
+    default: return `<p>Am Computer: In Chrome oder Edge in der Adressleiste auf das Installieren-Symbol klicken, in Safari <b>Ablage → Zum Dock hinzufügen</b>.</p>
+      <p>Fürs Handy: Öffne die Funkel-Adresse dort im Browser und tippe auf <b>„📲 App“</b>.</p>${link}${copy}`;
+  }
+}
+
+function openInstall() {
+  const ctx = installCtx();
+  openModal(`<img class="iico" src="icon-192.png" alt="Funkel-Symbol"><h3 class="ih">Funkel als App</h3>${installBody(ctx)}<button class="btn sm ghost" id="iClose" type="button">Schließen</button>`, `instbox i-${ctx}`);
+  const m = $('#modal'), im = $('#modal .iico');
+  if (im) im.onerror = () => im.remove();
+  m.onclick = (e) => { if (e.target === m && m.querySelector('.instbox')) closeModal(); };
+  $('#iClose').onclick = closeModal;
+  if ($('#iCopy')) $('#iCopy').onclick = async (e) => {
+    const b = e.currentTarget;
+    try { await navigator.clipboard.writeText(APP_URL); b.textContent = 'Kopiert ✓'; }
+    catch (err) { b.outerHTML = `<p class="ismall iurlt">${APP_URL}</p>`; }
+  };
+  if ($('#iGo')) $('#iGo').onclick = async () => {
+    const ev = Inst.evt;
+    if (!ev) { openInstall(); return; }
+    Inst.evt = null;
+    try {
+      await ev.prompt();
+      const r = await ev.userChoice;
+      closeModal();
+      if (r && r.outcome === 'accepted') toast('📲 Funkel wird installiert …', 3000);
+    } catch (err) { closeModal(); }
+    refreshInstall();
+  };
 }
 
 /* ===== Start ===== */

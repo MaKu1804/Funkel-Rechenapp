@@ -1,9 +1,9 @@
 /* Service Worker für "Rechnen mit Funkel": legt die App auf dem Gerät ab, damit sie auch ohne Netz startet.
    Die Version wird beim Bauen (build.py) aus dem Inhalt berechnet; neue Version = alter Speicher wird gelöscht. */
 'use strict';
-const VERSION = 'ba52653474';
+const VERSION = 'de91d52989';
 const CACHE = 'funkel-' + VERSION;
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon-32.png', 'favicon-48.png', 'icon.svg'];
+const SHELL = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon-32.png', 'favicon-48.png', 'icon.svg'];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
@@ -37,10 +37,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     if (req.mode === 'navigate') {
-      // Jede Seitenadresse der App führt zur einen Startseite (Offline-Start, auch mit angehängtem ?utm= usw.)
+      // Jede Seitenadresse der App führt zur einen Startseite './' (Offline-Start, auch über index.html oder mit angehängtem ?utm= usw.)
       e.respondWith(
-        staleWhileRevalidate(new Request(new URL('index.html', self.registration.scope).href), { ignoreSearch: true })
-          .then((res) => (res && res.ok ? res : caches.match('index.html')))
+        staleWhileRevalidate(new Request(self.registration.scope), { ignoreSearch: true })
+          .then((res) => (res && res.ok ? res : caches.match(self.registration.scope)))
       );
       return;
     }
